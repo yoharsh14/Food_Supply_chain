@@ -1,0 +1,35 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts/foodTracking.sol": {
+      "content": "//SPDX-License-Identifier: MIT\n\npragma solidity ^0.8.7;\n\ncontract trackFood {\n    event OrderCreated(\n        string indexed productName,\n        uint indexed productCost,\n        address manufacturer,\n        address reciever\n    );\n    enum STATE {\n        ordered,\n        payed,\n        shipped,\n        delivered\n    }\n    struct Food {\n        string productName;\n        STATE state;\n        string timeOfDispatch;\n        string currentLocation;\n        string expectedDelivery;\n        string recieverLocation;\n        address manufacturerAddress;\n        address recieverAddress;\n        uint productCost;\n        bool exist;\n    }\n    struct Owe {\n        address reciever;\n        uint amount;\n    }\n    struct Order {\n        uint amount;\n        string productCatogery;\n        string productName;\n        bool payed;\n    }\n    mapping(string => mapping(string => Food)) public foods;\n    mapping(address => mapping(string => Owe)) public costOwned;\n    mapping(address => Owe[]) owes;\n    mapping(address => Order) orderDetails;\n    address private immutable owner;\n    address[] private creators;\n\n    constructor() {\n        owner = msg.sender;\n        creators.push(msg.sender);\n    }\n\n    modifier isOwner() {\n        require(msg.sender == owner, \"You are not the owner\");\n        _;\n    }\n    modifier isCreator() {\n        bool isACreator = false;\n        for (uint i = 0; i < creators.length; i++) {\n            if (creators[i] == msg.sender) isACreator = true;\n        }\n        require(isACreator, \"You are not a creator of the shipment\");\n        _;\n    }\n    modifier productExist(\n        string memory _productCatogery,\n        string memory _productName\n    ) {\n        require(\n            foods[_productCatogery][_productName].exist,\n            \"This product does not exist\"\n        );\n        _;\n    }\n\n    function balance() public view isOwner returns (uint256) {\n        return payable(address(this)).balance;\n    }\n\n    function addCreator(address creator) public isOwner {\n        creators.push(creator);\n    }\n\n    function Initiation(\n        string memory _productName,\n        string memory _productCatogery,\n        string memory _timeOfDispatch,\n        string memory _currentLocation,\n        string memory _expectedDelivery,\n        string memory _recieverLocation,\n        address _manufacturerAddress,\n        address _recieverAddress,\n        uint _productCost\n    ) public isCreator {\n        Food memory food = Food(\n            _productName,\n            STATE.ordered,\n            _timeOfDispatch,\n            _currentLocation,\n            _expectedDelivery,\n            _recieverLocation,\n            _manufacturerAddress,\n            _recieverAddress,\n            _productCost,\n            true\n        );\n        foods[_productCatogery][_productName] = food;\n        Owe memory productCost = Owe(_manufacturerAddress, _productCost);\n        costOwned[_manufacturerAddress][_productName] = productCost;\n        emit OrderCreated(\n            _productName,\n            _productCost,\n            _manufacturerAddress,\n            _recieverAddress\n        );\n    }\n\n    function order(\n        string memory _productName,\n        string memory _productCategory\n    ) public payable {\n        uint cost = foods[_productCategory][_productName].productCost;\n        if (msg.value < cost) {\n            delete foods[_productCategory][_productName];\n            require(msg.value >= cost, \"You need to spend more\");\n        } else {\n            foods[_productCategory][_productName].state = STATE.payed;\n            orderDetails[msg.sender] = Order(\n                cost,\n                _productCategory,\n                _productName,\n                true\n            );\n        }\n    }\n\n    function Shipped(\n        string memory _productCatogery,\n        string memory _productName,\n        address recieverAddress\n    ) public productExist(_productCatogery, _productName) {\n        //state of Food changed\n        require(\n            foods[_productCatogery][_productName].state == STATE.payed &&\n                orderDetails[recieverAddress].payed,\n            \"Product not exit or Eth is not payed\"\n        );\n        foods[_productCatogery][_productName].state = STATE.shipped;\n    }\n\n    function approveDelivery(\n        string memory _productCatogery,\n        string memory _productName\n    ) public productExist(_productCatogery, _productName) {\n        require(\n            msg.sender ==\n                foods[_productCatogery][_productName].recieverAddress &&\n                foods[_productCatogery][_productName].state == STATE.shipped,\n            \"You are not the reciever of this item\"\n        );\n        foods[_productCatogery][_productName].state = STATE.delivered;\n        delivered(_productCatogery, _productName);\n    }\n\n    function delivered(\n        string memory _productCatogery,\n        string memory _productName\n    ) private productExist(_productCatogery, _productName) {\n        address payable to = payable(\n            foods[_productCatogery][_productName].manufacturerAddress\n        );\n        uint amount = foods[_productCatogery][_productName].productCost;\n        delete foods[_productCatogery][_productName];\n        (bool sent, ) = to.call{value: amount}(\"\");\n        require(sent, \"failed to send Ether\");\n    }\n}\n\n// contract outline\n//  1. Features\n//       a.) Food Item by catogery\n//       b.) Time of dipatch, expected delivery.\n//       c.) Current location.\n//       d.) Quality check at every step.\n//  2. Ownership\n//       a.) Dispatcher.\n//       b.) Movers.\n//       c.) Reciever.\n//       d.) owner.\n\n// workflow of the product\n// food manufactured -> packeged -> moved -> delivered\n\n// money flow\n// money is stored in the COA -> after the delivery of the product portion of payment is sent to mover and manufacturer\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": false,
+      "runs": 200
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}
